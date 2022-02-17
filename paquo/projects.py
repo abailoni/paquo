@@ -275,6 +275,17 @@ class QuPathProject:
             # update the proxy
             self._image_entries_proxy.refresh()
 
+    # @redirect(stderr=True, stdout=True)
+    def remove_image(self, image_id):
+        print(image_id)
+        # assert isinstance(image_id, int)
+        entry = self.images[image_id]
+        self.java_object.removeImage(entry.java_object, True)
+
+        # Update the project:
+        self.save(images=False)
+
+
     @redirect(stderr=True, stdout=True)
     def add_image(self,
                   image_id: Any,  # this should actually be ID type of the image provider
