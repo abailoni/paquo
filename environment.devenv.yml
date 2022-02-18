@@ -27,5 +27,5 @@ dependencies:
   - sdvillal::qupath
   - pytest>=6
   - pytest-cov
-  - pip:
-    - "-e ."  # [ PAQUO_DEVEL ]
+#  - pip:
+#    - "-e ."  # [ PAQUO_DEVEL ]

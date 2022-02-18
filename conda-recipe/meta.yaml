@@ -1,0 +1,35 @@
+package:
+  name: paquo
+  version: 0.4.2
+
+source:
+  path: ..
+
+build:
+  script: "pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
+  number: 1
+
+requirements:
+  build:
+    - python {{ python }}
+    - pip
+  run:
+    - python {{ python }}
+    - pip
+    - jpype1>=1.0.1
+    - dynaconf>=3,!=3.1.0,!=3.1.7
+    - ome-types  # [ WITH_OME ]
+    - shapely
+    - qupath
+    - pytest>=6
+    - pytest-cov
+
+
+test:
+  imports:
+    - paquo
+  source_files:
+    - paquo/tests/**/*.py
+  commands:
+    - pytest paquo/tests
+
