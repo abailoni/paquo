@@ -276,13 +276,14 @@ class QuPathProject:
             self._image_entries_proxy.refresh()
 
     # @redirect(stderr=True, stdout=True)
-    def remove_image(self, image_id):
-        print(image_id)
-        # assert isinstance(image_id, int)
-        entry = self.images[image_id]
-        self.java_object.removeImage(entry.java_object, True)
+    def remove_image(self, image_entry_id):
+        # Check if image is in project:
+        entry_ids = [im.entry_id for im in self.images]
+        assert image_entry_id in entry_ids, "Image with entry id {} not found and cannot be removed".format(image_entry_id)
+        entry = self.images[entry_ids.index(image_entry_id)]
 
-        # Update the project:
+        # Remove image and update the project:
+        self.java_object.removeImage(entry.java_object, True)
         self.save(images=False)
 
 
