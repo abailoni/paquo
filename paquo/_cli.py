@@ -198,11 +198,13 @@ def open_qupath(project_path):
     app_dir, _, _, _ = find_qupath(**to_kwargs(settings))
     system = platform.system()
     if system == "Linux":
-        qupath, = Path(app_dir).parent.parent.joinpath("bin").glob("QuPath*")
-
+        # print([p for p in Path(app_dir).parent.parent.joinpath("bin").glob("QuPath*")])
+        # TODO: why in the original code there was "QuPath*"? On linux there is also a QuPath.sh file matching...
+        qupath, = tuple(p for p in Path(app_dir).parent.parent.joinpath("bin").glob("QuPath"))
+        # print(app_dir)
     elif system == "Darwin":
-        qupath, = Path(app_dir).parent.joinpath("MacOS").glob("QuPath*")
-
+        qupath, = Path(app_dir).parent.joinpath("MacOS").glob("QuPath")
+        print(qupath)
     elif system == "Windows":
         _qp_exes = list(Path(app_dir).parent.glob("QuPath*.exe"))
         assert len(_qp_exes) == 2, f"this should have returned two paths, got {_qp_exes}"
