@@ -5,8 +5,8 @@ from collections import defaultdict
 from functools import partial
 from pathlib import Path
 
-
 # -- argparse improvements ---------------------------------------------
+
 
 def subcommand(*arguments, parent):
     """decorator helper for commandline"""
@@ -43,38 +43,19 @@ class DirectoryType:
 
 def config_print_settings():
     """print the current configuration"""
-    # we'll use the current public dynaconf api so that we don't need to import our own
-    # toml... that means we need to go via a temporary file to dump the current config,
-    # because dynaconf doesn't support it otherwise...
-    # github.com/rochacbruno/dynaconf/blob/68df27d2/dynaconf/loaders/toml_loader.py#L56
-    import tempfile
-    from dynaconf import loaders
-    from dynaconf.utils.boxing import DynaBox
     from paquo import settings
-    from paquo._config import to_kwargs
-
-    data = DynaBox(settings.as_dict(internal=False))
-    # we create a temporary dir and write to a toml file
-    # note: this is to workaround the fact that using NamedTemporaryFile will
-    #   error under windows due to loaders.write calling open on the file
-    with tempfile.TemporaryDirectory() as tmpdir:
-        fn = str(Path(tmpdir) / ".paquo.temporary.toml")  # suffix determines loader
-        loaders.write(fn, to_kwargs(data))
-        with open(fn, 'rt') as f:
-            output = f.read()
+    from paquo._config import to_toml
 
     print("# current paquo configuration")
     print("# ===========================")
     print("# format: TOML")
-    print(output)
+    print(to_toml(settings))
 
 
 def config_print_defaults():
     """print the default paquo configuration"""
-    if sys.version_info >= (3, 7):
-        from importlib.resources import read_text
-    else:
-        from importlib_resources import read_text
+    from importlib.resources import read_text
+
     from paquo._config import settings
 
     output = read_text(
@@ -129,11 +110,11 @@ def create_project(project_path, class_names_colors, images,
                    annotations_json_func=None,
                    remove_default_classes=False, force_write=False):
     """create a qupath project"""
+    from paquo._logging import get_logger
+    from paquo._utils import load_json_from_path
     from paquo.classes import QuPathPathClass
     from paquo.images import QuPathImageType
     from paquo.projects import QuPathProject
-    from paquo._logging import get_logger
-    from paquo._utils import load_json_from_path
 
     _logger = get_logger(__name__)
 
@@ -171,8 +152,9 @@ def create_project(project_path, class_names_colors, images,
 
 def export_annotations(path, image_idx, pretty=False):
     """print annotations as geojson"""
-    from paquo.projects import QuPathProject
     import pprint
+
+    from paquo.projects import QuPathProject
 
     with QuPathProject(path, mode='r') as qp:
         image = qp.images[image_idx]
@@ -188,10 +170,13 @@ def export_annotations(path, image_idx, pretty=False):
 def open_qupath(project_path):
     """launch qupath with the provided project"""
     import subprocess
-    from zipfile import ZipFile
-    from contextlib import contextmanager, ExitStack
+    from contextlib import ExitStack
+    from contextlib import contextmanager
     from tempfile import TemporaryDirectory
-    from paquo._config import settings, to_kwargs
+    from zipfile import ZipFile
+
+    from paquo._config import settings
+    from paquo._config import to_kwargs
     from paquo.jpype_backend import find_qupath
 
     # retrieve the path of the qupath executable

@@ -4,6 +4,7 @@ import re
 import shlex
 import sys
 from contextlib import contextmanager
+from contextlib import nullcontext
 from itertools import chain
 from pathlib import Path
 from textwrap import dedent
@@ -20,7 +21,6 @@ from warnings import warn
 
 import jpype
 
-from paquo._utils import nullcontext
 from paquo._utils import QuPathVersion
 
 # types

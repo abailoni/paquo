@@ -1,10 +1,12 @@
 import argparse
 import functools
 import os
+import platform
 import sys
 import tempfile
 from contextlib import redirect_stdout
 from itertools import repeat
+from logging.config import dictConfig
 from pathlib import Path
 
 from paquo._cli import DirectoryType
@@ -17,14 +19,11 @@ from paquo._cli import list_project
 from paquo._cli import open_qupath
 from paquo._cli import qpzip_project
 from paquo._cli import subcommand
-from paquo._config import PAQUO_CONFIG_FILENAME
-from paquo._config import get_searchtree
 
-# noinspection PyTypeChecker
 parser = argparse.ArgumentParser(
     prog="python -m paquo" if Path(sys.argv[0]).name == "__main__.py" else None,
     description="""\
- ██████╗  █████╗  ██████╗ ██╗   ██╗ ██████╗ 
+ ██████╗  █████╗  ██████╗ ██╗   ██╗ ██████╗
  ██╔══██╗██╔══██╗██╔═══██╗██║   ██║██╔═══██╗
  ██████╔╝███████║██║   ██║██║   ██║██║   ██║
  ██╔═══╝ ██╔══██║██║▄▄ ██║██║   ██║██║   ██║
@@ -41,19 +40,27 @@ parser.add_argument('--qupath-version', action='store_true', help="print qupath 
 
 def main(commandline=None):
     """main command line argument handling"""
-    args = parser.parse_args(commandline)
+    try:
+        args = parser.parse_args(commandline)
+    except UnicodeEncodeError:
+        # recover in case terminal does not support unicode
+        parser.description = "PAQUO"
+        args = parser.parse_args(commandline)
+
     if args.cmd is None:
-        if args.version:
-            from paquo import __version__
-            print(f"{__version__}")
-        if args.qupath_version:
-            from paquo.java import qupath_version
-            print(f"{qupath_version!s}")
-        if not (args.version or args.qupath_version):
+        if args.version or args.qupath_version:
+            if args.version:
+                from paquo import __version__
+                print(f"{__version__}")
+            if args.qupath_version:
+                from paquo.java import qupath_version
+                print(f"{qupath_version!s}")
+            return 0
+        else:
             parser.print_help()
+            return 1
     else:
-        from paquo import settings
-        from logging.config import dictConfig
+        from paquo._config import settings
         lvl = 'INFO'
         if settings.cli_force_log_level_error:
             lvl = 'ERROR'
@@ -77,7 +84,6 @@ def main(commandline=None):
             },
         })
         return args.cmd_func(args)
-    return 0
 
 
 @subcommand(
@@ -94,6 +100,9 @@ def main(commandline=None):
 )
 def config(args, subparser):
     """handle paquo configuration"""
+    from paquo._config import PAQUO_CONFIG_FILENAME
+    from paquo._config import get_searchtree
+
     if not (args.list or args.search_tree):
         print(subparser.format_help())
         return 0
@@ -278,18 +287,73 @@ def quickview(args, subparser):
     cmd = None
     if f_annotations_cmd or f_annotations:
         def cmd(name):
-            l = []
+            names = []
             if f_annotations:
-                l.extend(f_annotations(name))
+                names.extend(f_annotations(name))
             if f_annotations_cmd:
-                l.extend(f_annotations_cmd(name))
-            return l
+                names.extend(f_annotations_cmd(name))
+            return names
 
     with tempfile.TemporaryDirectory() as project_path:
         create_project(project_path, class_names_colors=[], images=[image], annotations_json_func=cmd)
         open_qupath(project_path)
 
     return 0
+
+
+@subcommand(
+    argument("--install-path", type=DirectoryType(), required=True, help="extract / install QuPath to this path"),
+    argument("--override-system", default=platform.system(), help=argparse.SUPPRESS),
+    argument(
+        "--download-path",
+        type=DirectoryType(),
+        default=tempfile.gettempdir(),
+        help="download QuPath archives to this path",
+    ),
+    argument("--no-ssl-verify", action="store_true", help="(danger!) disable ssl verification for download"),
+    argument("version", type=str, help="the QuPath version to download"),
+)
+def get_qupath(args, subparser):
+    """download a specific QuPath version"""
+    from paquo._utils import download_qupath
+    from paquo._utils import extract_qupath
+
+    system = args.override_system
+
+    def _download_cb(it, name):
+        if name:
+            print("# downloading:", name)
+        print("# progress ", end="", flush=True)
+        try:
+            for chunk in it:
+                print(".", end="", flush=True)
+                yield chunk
+            print(" OK", end="", flush=True)
+        finally:
+            print("")
+
+    file = download_qupath(
+        args.version,
+        path=args.download_path,
+        callback=_download_cb,
+        system=system,
+        ssl_verify=not args.no_ssl_verify
+    )
+    print("# extracting:", file)
+    app = extract_qupath(file, args.install_path, system=system)
+    print("# available at:", app)
+
+    print("#\n# use via environment variable:")
+    if system in {"Linux", "Darwin"}:
+        print(f"#  $ export PAQUO__QUPATH_DIR={app}")
+    else:
+        print("#  REM Windows CMD")
+        print(f'#  C:\\> set PAQUO__QUPATH_DIR="{app}"')
+        print("#  # Windows PowerShell")
+        print(f'#  PS C:\\> $env:PAQUO__QUPATH_DIR="{app}"')
+    print("#\n# use via .paquo.toml config file:")
+    print(f'#  qupath_dir="{app}"')
+    print(app)
 
 
 if __name__ == "__main__":  # pragma: no cover

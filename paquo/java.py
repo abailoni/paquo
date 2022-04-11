@@ -6,7 +6,6 @@ from paquo._utils import QuPathVersion
 from paquo.jpype_backend import JClass
 from paquo.jpype_backend import start_jvm
 
-
 # we can extend this as when we add more testing against different versions
 MIN_QUPATH_VERSION = QuPathVersion('0.2.0')  # FIXME: this is bound to change
 
@@ -15,12 +14,12 @@ MIN_QUPATH_VERSION = QuPathVersion('0.2.0')  # FIXME: this is bound to change
 # Note: this renders paquo unusable. But we need it for example for the
 #   sphinx docs to be generated without requiring an installed qupath.
 if settings.mock_backend:  # pragma: no cover
-    from unittest.mock import create_autospec
     from unittest.mock import MagicMock
+    from unittest.mock import create_autospec
 
     start_jvm = create_autospec(start_jvm, return_value=MIN_QUPATH_VERSION)
     # noinspection PyPep8Naming
-    def JClass(jc, *_args, **_kwargs):
+    def JClass(jc, *_args, **_kwargs):  # noqa
         class _JClassType(type):
             def __getattr__(cls, key):
                 return MagicMock()
@@ -76,6 +75,7 @@ class _Compatibility:
         else:
             return self.version >= QuPathVersion("0.2.0-m10")
 
+
 compatibility = _Compatibility(qupath_version)
 
 
@@ -118,7 +118,6 @@ PathObjects = JClass("qupath.lib.objects.PathObjects")
 PathROIObject = JClass("qupath.lib.objects.PathROIObject")
 PathTileObject = JClass("qupath.lib.objects.PathTileObject")
 Point2 = JClass("qupath.lib.geom.Point2")
-ProjectImportImagesCommand = JClass('qupath.lib.gui.commands.ProjectImportImagesCommand')
 ProjectIO = JClass('qupath.lib.projects.ProjectIO')
 Projects = JClass('qupath.lib.projects.Projects')
 ROI = JClass("qupath.lib.roi.interfaces.ROI")
@@ -143,3 +142,22 @@ NegativeArraySizeException = JClass('java.lang.NegativeArraySizeException')
 IllegalArgumentException = JClass('java.lang.IllegalArgumentException')
 FileNotFoundException = JClass('java.io.FileNotFoundException')
 NoSuchFileException = JClass('java.nio.file.NoSuchFileException')
+
+
+def __getattr__(name):
+    """lazy import some"""
+    if name == "ProjectImportImagesCommand":
+        warnings.warn(
+            "ProjectImportImagesCommand will be removed from paquo.java",
+            DeprecationWarning
+        )
+        return JClass('qupath.lib.gui.commands.ProjectImportImagesCommand')
+    else:
+        raise AttributeError(name)
+
+
+# noinspection PyPep8Naming
+def ProjectImportImagesCommand_getThumbnailRGB(server, _):
+    # needs to be lazily imported to not emit threading info message
+    pcmd = JClass('qupath.lib.gui.commands.ProjectImportImagesCommand')
+    return pcmd.getThumbnailRGB(server, None)

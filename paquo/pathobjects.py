@@ -8,12 +8,14 @@ from typing import Type
 from typing import TypeVar
 from typing import Union
 
+from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 from shapely.wkb import dumps as shapely_wkb_dumps
 from shapely.wkb import loads as shapely_wkb_loads
 
 from paquo._utils import cached_property
 from paquo.classes import QuPathPathClass
+from paquo.java import ROI
 from paquo.java import GeometryTools
 from paquo.java import GsonTools
 from paquo.java import PathAnnotationObject
@@ -21,12 +23,13 @@ from paquo.java import PathDetectionObject
 from paquo.java import PathObjects
 from paquo.java import PathROIObject
 from paquo.java import PathTileObject
-from paquo.java import ROI
 from paquo.java import String
 from paquo.java import WKBReader
 from paquo.java import WKBWriter
 
 __all__ = [
+    "fix_geojson_geometry",
+    "BaseGeometry",
     "PathROIObjectType",
     "QuPathPathAnnotationObject",
     "QuPathPathDetectionObject",
@@ -56,6 +59,19 @@ def _qupath_roi_to_shapely_geometry(roi) -> BaseGeometry:
     jts_geometry = GeometryTools.roiToGeometry(roi)
     wkb_bytearray = WKBWriter(2).write(jts_geometry)
     return shapely_wkb_loads(bytes(wkb_bytearray))
+
+
+def fix_geojson_geometry(geometry: dict) -> dict:
+    """try to fix a provided geojson geometry via buffering"""
+    s = shape(geometry)
+    if not s.is_valid:
+        # attempt to fix
+        s = s.buffer(0, 1)
+        if not s.is_valid:
+            s = s.buffer(0, 1)
+            if not s.is_valid:
+                raise ValueError("invalid geometry")
+    return s.__geo_interface__  # type: ignore
 
 
 class _MeasurementList(MutableMapping):
@@ -269,7 +285,13 @@ class _PathROIObject:
         return f"{type(self).__name__}({' '.join(out)})"
 
     def _repr_html_(self):
-        from paquo._repr import br, div, h4, p, span, rawhtml, repr_svg
+        from paquo._repr import br
+        from paquo._repr import div
+        from paquo._repr import h4
+        from paquo._repr import p
+        from paquo._repr import rawhtml
+        from paquo._repr import repr_svg
+        from paquo._repr import span
 
         obj_class_name = self.__class__.__name__
         if obj_class_name.startswith('QuPath'):

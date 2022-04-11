@@ -16,9 +16,6 @@ from typing import Type
 from typing import Union
 from typing import overload
 
-from shapely.geometry import shape
-from shapely.geometry.base import BaseGeometry
-
 from paquo._logging import get_logger
 from paquo._utils import cached_property
 from paquo.classes import QuPathPathClass
@@ -26,12 +23,15 @@ from paquo.java import GsonTools
 from paquo.java import IllegalArgumentException
 from paquo.java import PathObjectHierarchy
 from paquo.java import compatibility
+from paquo.pathobjects import BaseGeometry
 from paquo.pathobjects import PathROIObjectType
 from paquo.pathobjects import QuPathPathAnnotationObject
 from paquo.pathobjects import QuPathPathDetectionObject
 from paquo.pathobjects import QuPathPathTileObject
+from paquo.pathobjects import fix_geojson_geometry
 
 __all__ = ["QuPathPathObjectHierarchy"]
+
 _logger = get_logger(__name__)
 
 
@@ -95,9 +95,9 @@ class PathObjectProxy(Sequence[PathROIObjectType], MutableSet[PathROIObjectType]
 
     def __ior__(self, other: Iterable[Any]) -> "PathObjectProxy":  # type: ignore
         if self._mask:
-            raise IOError("cannot modify view")
+            raise OSError("cannot modify view")
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         path_objects = [x.java_object for x in other]
         try:
             self._java_hierarchy.addPathObjects(path_objects)
@@ -108,9 +108,9 @@ class PathObjectProxy(Sequence[PathROIObjectType], MutableSet[PathROIObjectType]
 
     def __isub__(self, other: Iterable[Any]) -> "PathObjectProxy":  # type: ignore
         if self._mask:
-            raise IOError("cannot modify view")
+            raise OSError("cannot modify view")
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         path_objects = [x.java_object for x in other]
         try:
             self._java_hierarchy.removeObjects(path_objects, True)
@@ -121,9 +121,9 @@ class PathObjectProxy(Sequence[PathROIObjectType], MutableSet[PathROIObjectType]
     def add(self, x: PathROIObjectType) -> None:
         """adds a new path object to the proxy"""
         if self._mask:
-            raise IOError("cannot modify view")
+            raise OSError("cannot modify view")
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         if not isinstance(x, self._paquo_cls):
             raise TypeError(f"requires {self._paquo_cls.__name__} instance got {x.__class__.__name__}")
         try:
@@ -137,9 +137,9 @@ class PathObjectProxy(Sequence[PathROIObjectType], MutableSet[PathROIObjectType]
     def discard(self, x: PathROIObjectType) -> None:
         """discard a path object from the proxy"""
         if self._mask:
-            raise IOError("cannot modify view")
+            raise OSError("cannot modify view")
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         if not isinstance(x, self._paquo_cls):
             raise TypeError(f"requires {self._paquo_cls.__name__} instance got {x.__class__.__name__}")
         try:
@@ -153,9 +153,9 @@ class PathObjectProxy(Sequence[PathROIObjectType], MutableSet[PathROIObjectType]
     def clear(self) -> None:
         """clear all path objects from the proxy"""
         if self._mask:
-            raise IOError("cannot modify view")
+            raise OSError("cannot modify view")
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         try:
             self._java_hierarchy.removeObjects(self._list, True)
         finally:
@@ -305,7 +305,7 @@ class QuPathPathObjectHierarchy:
                        path_class_probability: float = math.nan) -> QuPathPathAnnotationObject:
         """convenience method for adding annotations"""
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         obj = QuPathPathAnnotationObject.from_shapely(
             roi, path_class, measurements,
             path_class_probability=path_class_probability
@@ -325,7 +325,7 @@ class QuPathPathObjectHierarchy:
                       *,
                       path_class_probability: float = math.nan) -> QuPathPathDetectionObject:
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         """convenience method for adding detections
 
         Notes
@@ -352,7 +352,7 @@ class QuPathPathObjectHierarchy:
         these will be added to self.detections
         """
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         obj = QuPathPathTileObject.from_shapely(
             roi, path_class, measurements,
             path_class_probability=path_class_probability
@@ -376,7 +376,7 @@ class QuPathPathObjectHierarchy:
         """
         # todo: use geojson module for type checking?
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         if not isinstance(geojson, list):
             raise TypeError("requires a geojson list")
 
@@ -385,15 +385,7 @@ class QuPathPathObjectHierarchy:
         for annotation in geojson:
             try:
                 if fix_invalid:
-                    s = shape(annotation['geometry'])
-                    if not s.is_valid:
-                        # attempt to fix
-                        s = s.buffer(0, 1)
-                        if not s.is_valid:
-                            s = s.buffer(0, 1)
-                            if not s.is_valid:
-                                raise ValueError("invalid geometry")
-                    annotation['geometry'] = s.__geo_interface__
+                    annotation["geometry"] = fix_geojson_geometry(annotation["geometry"])
 
                 # compatibility layer
                 # todo: should maybe test at the beginning of this method
@@ -447,17 +439,17 @@ class QuPathPathObjectHierarchy:
         # this
         try:
             from ome_types import to_xml
+            from ome_types.model import OME
+            from ome_types.model import ROI
             from ome_types.model import AnnotationRef
             from ome_types.model import Ellipse as OmeEllipse
             from ome_types.model import Line as OmeLine
             from ome_types.model import Map
             from ome_types.model import MapAnnotation
-            from ome_types.model import OME
             from ome_types.model import Point as OmePoint
             from ome_types.model import Polygon as OmePolygon
             from ome_types.model import Polyline as OmePolyline
             from ome_types.model import Rectangle as OmeRectangle
-            from ome_types.model import ROI
             from ome_types.model.map import M
             from ome_types.model.shape import FillRule
         except ImportError:
@@ -618,7 +610,11 @@ class QuPathPathObjectHierarchy:
         return f"Hierarchy(image={self._image_name}, annotations={len(self._annotations)}, detections={len(self._detections)})"
 
     def _repr_html_(self):
-        from paquo._repr import br, div, h4, p, span
+        from paquo._repr import br
+        from paquo._repr import div
+        from paquo._repr import h4
+        from paquo._repr import p
+        from paquo._repr import span
 
         return div(
             h4(text=f"Hierarchy: {self._image_name}", style={"margin-top": "0"}),

@@ -5,6 +5,7 @@ import re
 import shutil
 import sys
 from contextlib import contextmanager
+from contextlib import nullcontext
 from typing import Any
 from typing import Callable
 from typing import ContextManager
@@ -27,7 +28,6 @@ from paquo import settings
 from paquo._logging import get_logger
 from paquo._logging import redirect
 from paquo._utils import make_backup_filename
-from paquo._utils import nullcontext
 from paquo.classes import QuPathPathClass
 from paquo.images import ImageProvider
 from paquo.images import QuPathImageType
@@ -43,13 +43,12 @@ from paquo.java import GeneralTools
 from paquo.java import ImageServerProvider
 from paquo.java import IOException
 from paquo.java import NegativeArraySizeException
-from paquo.java import ProjectImportImagesCommand
+from paquo.java import ProjectImportImagesCommand_getThumbnailRGB
 from paquo.java import ProjectIO
 from paquo.java import Projects
 from paquo.java import ServerTools
 from paquo.java import String
 from paquo.java import compatibility
-
 
 _log = get_logger(__name__)
 
@@ -308,7 +307,7 @@ class QuPathProject:
         """
         # readonly?
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         # test if we may add:
         img_uri = self._image_provider.uri(image_id)
         if img_uri is None:
@@ -336,12 +335,12 @@ class QuPathProject:
             # and raise a FileNotFoundError here
             raise FileNotFoundError(image_id)
         except ExceptionInInitializerError:
-            raise IOError("no preferred support found")
+            raise OSError("no preferred support found")
         if not support:
-            raise IOError("no preferred support found")  # pragma: no cover
+            raise OSError("no preferred support found")  # pragma: no cover
         server_builders = list(support.getBuilders())
         if not server_builders:
-            raise IOError("no supported server builders found")  # pragma: no cover
+            raise OSError("no supported server builders found")  # pragma: no cover
         server_builder = server_builders[0]
 
         with self._stage_image_entry(server_builder) as j_entry:
@@ -350,7 +349,7 @@ class QuPathProject:
                 server = server_builder.build()
             except IOException:
                 _, _, _sb = server_builder.__class__.__name__.rpartition(".")
-                raise IOError(f"{_sb} can't open {str(image_id)}")
+                raise OSError(f"{_sb} can't open {str(image_id)}")
             j_entry.setImageName(ServerTools.getDisplayableImageName(server))
 
             # add some informative logging
@@ -361,11 +360,11 @@ class QuPathProject:
             target_downsample = math.sqrt(width / 1024.0 * height / 1024.0)
             _log.info(f"Image[{width}x{height}] with downsamples {downsamples}")
             if not any(d >= target_downsample for d in downsamples):
-                _log.warning(f"No matching downsample for thumbnail! This might take a long time...")
+                _log.warning("No matching downsample for thumbnail! This might take a long time...")
 
             # set the project thumbnail
             try:
-                thumbnail = ProjectImportImagesCommand.getThumbnailRGB(server, None)
+                thumbnail = ProjectImportImagesCommand_getThumbnailRGB(server, None)
             except NegativeArraySizeException:  # pragma: no cover
                 raise RuntimeError(
                     "Thumbnailing FAILED. Image might be too large and has no embedded thumbnail."
@@ -483,7 +482,7 @@ class QuPathProject:
         (writes path_classes and project data)
         """
         if self._readonly:
-            raise IOError("project in readonly mode")
+            raise OSError("project in readonly mode")
         if images:
             for entry in self.images:
                 entry.save()
@@ -491,7 +490,7 @@ class QuPathProject:
             self.java_object.syncChanges()
         # convert java land exception
         except IOException:  # pragma: no cover
-            raise IOError("occurred when trying to save the project")
+            raise OSError("occurred when trying to save the project")
 
     @property
     def name(self) -> str:
