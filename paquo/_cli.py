@@ -207,7 +207,7 @@ def open_qupath(project_path):
         print(qupath)
     elif system == "Windows":
         _qp_exes = list(Path(app_dir).parent.glob("QuPath*.exe"))
-        assert len(_qp_exes) == 2, f"this should have returned two paths, got {_qp_exes}"
+        # assert len(_qp_exes) == 2, f"this should have returned two paths, got {_qp_exes}"
         qupath, = (qp for qp in _qp_exes if "console" in qp.stem)
 
     else:
