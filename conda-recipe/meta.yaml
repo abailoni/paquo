@@ -20,12 +20,12 @@ requirements:
     - dynaconf>=3,!=3.1.0,!=3.1.7
     - ome-types  # [ WITH_OME ]
     - shapely
-    - qupath
-    - pytest>=6
-    - pytest-cov
 
 
 test:
+  requires:
+    - pytest>=6
+    - pytest-cov
   imports:
     - paquo
   source_files:
