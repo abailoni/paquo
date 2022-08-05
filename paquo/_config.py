@@ -1,4 +1,3 @@
-import sys
 import tempfile
 from importlib.resources import path as importlib_resources_path
 from pathlib import Path
@@ -15,10 +14,31 @@ from dynaconf.utils.boxing import DynaBox
 
 PAQUO_CONFIG_FILENAME = '.paquo.toml'
 
+_PAQUO_FIX_CONFIG_KEYS = {
+    # recover prefixed keys due to dynaconf weirdness
+    "_qupath_dir",
+    "_qupath_search_dirs",
+    "_qupath_search_dir_regex",
+    "_qupath_search_conda",
+    "_qupath_prefer_conda",
+    "_java_opts",
+    "_safe_truncate",
+    "_mock_backend",
+    "_cli_force_log_level_error",
+    "_warn_microsoft_store_python",
+}
+
 
 def to_kwargs(s: "Settings | DynaBox") -> Dict[str, Any]:
     """convert dynaconf settings to lowercase"""
-    return {k.lower(): v for k, v in s.to_dict().items()}
+    dct = s.to_dict()
+    out = {}
+    for key, value in dct.items():
+        k = key.lower()
+        if k in _PAQUO_FIX_CONFIG_KEYS:
+            k = k[1:]
+        out[k] = value
+    return out
 
 
 def to_toml(s: Settings) -> str:
@@ -40,24 +60,30 @@ def to_toml(s: Settings) -> str:
     return output
 
 
-with importlib_resources_path("paquo", ".paquo.defaults.toml") as default_config:
+def _get_settings() -> Dynaconf:
+    """load default settings instance"""
+    with importlib_resources_path("paquo", ".paquo.defaults.toml") as default_config:
 
-    settings = Dynaconf(
-        envvar_prefix="PAQUO",
-        settings_file=[PAQUO_CONFIG_FILENAME],
-        root_path=Path.cwd(),
-        core_loaders=['TOML'],
-        preload=[str(default_config.absolute())],
-        validators=[
-            Validator("java_opts", is_type_of=(list, tuple, str)),
-            Validator("qupath_search_dirs", is_type_of=(list, tuple, str)),
-            Validator("qupath_search_conda", is_type_of=(bool, int), is_in=(0, 1)),
-            Validator("qupath_prefer_conda", is_type_of=(bool, int), is_in=(0, 1)),
-            Validator("safe_truncate", is_type_of=(bool, int), is_in=(0, 1)),
-            Validator("mock_backend", is_type_of=(bool, int), is_in=(0, 1)),
-            Validator("cli_force_log_level_error", is_type_of=(bool, int), is_in=(0, 1)),
-        ]
-    )
+        settings = Dynaconf(
+            envvar_prefix="PAQUO",
+            settings_file=[PAQUO_CONFIG_FILENAME],
+            root_path=Path.cwd(),
+            core_loaders=['TOML'],
+            preload=[str(default_config.absolute())],
+            validators=[
+                Validator("java_opts", is_type_of=(list, tuple, str)),
+                Validator("qupath_search_dirs", is_type_of=(list, tuple, str)),
+                Validator("qupath_search_conda", is_type_of=(bool, int), is_in=(0, 1)),
+                Validator("qupath_prefer_conda", is_type_of=(bool, int), is_in=(0, 1)),
+                Validator("safe_truncate", is_type_of=(bool, int), is_in=(0, 1)),
+                Validator("mock_backend", is_type_of=(bool, int), is_in=(0, 1)),
+                Validator("cli_force_log_level_error", is_type_of=(bool, int), is_in=(0, 1)),
+            ]
+        )
+    return settings
+
+
+settings = _get_settings()
 
 
 def get_searchtree() -> List[str]:
